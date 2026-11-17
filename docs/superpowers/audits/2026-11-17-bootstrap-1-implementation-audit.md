@@ -15,3 +15,9 @@ Reviewed d34fbc85d6a58e2473bf5288abd2974560877dff against d2ee09e in a fresh clo
 The workflow subscribes to ready and body-edit events, cancels superseded PR runs, gives main pushes independent concurrency groups and checks explicit success/skip pairs at the aggregate gate. The metadata job scopes commit history to base..head and checks both Git identities. The personal repository uses serial integration outside GitHub’s organizational merge queue.
 
 Node 24.22.1 passed ESLint, checked JavaScript types, all eight unit checks, and the Vite production build. The source diff retains the original course coordinates and geometry. Six cloud Chromium checks passed in 28.3 seconds, covering pause/resume and the field-guide round trip on emulated phone, tablet and desktop. Physical-device performance was outside this bootstrap. No GitHub actions or administration performed by this reviewer.
+
+## Fix verification
+
+Reviewed 3755173963d66a9bc21f9119e831b0badce66264. All three findings are closed. Fresh ESLint and typecheck runs passed, as did all 11 unit checks. The regression fixtures exercise all four nested documentation directories in draft and ready states, detect a second test starting after a deliberate failure, and reject the robot-prefixed credit in both metadata validators. The workflow also limits draft Playwright runs to one failure and cancels remaining browser shards when a shard fails. The browser runner targets Ubuntu 24.04. Runtime game and browser test sources match the walked revision.
+
+The aggregate shell step returned the expected status for all 432 tested combinations of event, scope, applicability and job outcome. Hosted branch protection and CI results are the coordinator's release checks. The local implementation review passes.
