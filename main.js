@@ -25,7 +25,7 @@ function note(freq,length=.12,delay=0,type='sine'){
   const osc=audio.createOscillator(),g=audio.createGain(),t=audio.currentTime+delay;
   osc.type=type;osc.frequency.value=freq;g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.08,t+.008);g.gain.exponentialRampToValueAtTime(.0001,t+length);osc.connect(g);g.connect(audio.destination);osc.start(t);osc.stop(t+length+.02);
 }
-function unlock(){if(!audio&&sound){try{audio=new AudioContext()}catch{}}if(audio?.state==='suspended')audio.resume().catch(()=>{})}
+function unlock(){if(!audio&&sound){try{audio=new AudioContext()}catch{/* Browsers without Web Audio can still play. */}}if(audio?.state==='suspended')audio.resume().catch(()=>{})}
 function toast(msg){$('toast').textContent=msg;$('toast').style.opacity='1';clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').style.opacity='0',1800)}
 function updateHud(){
   $('coins').textContent=String(coinCount).padStart(2,'0');$('stars').innerHTML=starCount+'<small>/3</small>';
@@ -36,7 +36,7 @@ function play(){mode='play';$('overlay').hidden=true;scene.focus({preventScroll:
 function dialog(state,title,html,actions,symbol){
   mode=state;keys.clear();jumpBuffer=0;$('dialog-title').textContent=title;$('dialogBody').innerHTML=html;$('dialogIcon').textContent=symbol;$('actions').replaceChildren();
   for(const [name,fn] of actions){const b=document.createElement('button');b.textContent=name;b.onclick=fn;$('actions').append(b)}
-  $('overlay').hidden=false;$('actions').firstChild.focus({preventScroll:true});
+  $('overlay').hidden=false;$('actions').querySelector('button').focus({preventScroll:true});
 }
 function pause(){if(mode==='play')dialog('pause','Taking a breather','<p>Your expedition is paused.</p>',[['Resume',play],['Restart course',restart]],'Ⅱ');else if(mode==='pause')play()}
 function guide(){if(mode!=='play'&&mode!=='pause')return;guideReturn=mode;dialog('guide','Field guide','<p>Three stars lie off the main trail.</p><div class="hint"><b>Grove star</b> · Look behind the orchard trees.</div><div class="hint"><b>Sky star</b> · Follow the stepping stone beyond the grove.</div><div class="hint"><b>Blossom star</b> · Jump south from the waterfall meadow.</div>',[['Back to course',()=>{play();if(guideReturn==='pause')pause()}]],'✦')}
@@ -49,13 +49,13 @@ $('full').onclick=async()=>{try{if(document.fullscreenElement)await document.exi
 const controls=['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowLeft','ArrowDown','ArrowRight','Space','ShiftLeft','ShiftRight'];
 function down(key){if(mode!=='play')return;unlock();started=true;if(key==='Space'&&!keys.has(key))jumpBuffer=.16;keys.add(key)}
 window.addEventListener('keydown',e=>{
-  if(e.code==='Escape'&&!e.repeat){if(mode==='guide')$('actions').firstChild.click();else pause();return}
-  if(controls.includes(e.code)&&mode==='play'&&!(e.code==='Space'&&e.target.closest('button'))){e.preventDefault();down(e.code)}
+  if(e.code==='Escape'&&!e.repeat){if(mode==='guide')$('actions').querySelector('button').click();else pause();return}
+  if(controls.includes(e.code)&&mode==='play'&&!(e.code==='Space'&&(e.target instanceof Element && e.target.closest('button')))){e.preventDefault();down(e.code)}
 });
 window.addEventListener('keyup',e=>keys.delete(e.code));
 window.addEventListener('blur',()=>{keys.clear();if(started&&mode==='play')pause()});
-document.querySelectorAll('[data-key]').forEach(b=>{b.onpointerdown=e=>{e.preventDefault();b.setPointerCapture(e.pointerId);down(b.dataset.key)};b.onlostpointercapture=()=>keys.delete(b.dataset.key)});
-scene.addEventListener('pointerdown',e=>{if(!e.target.closest('button'))scene.focus({preventScroll:true})});
+document.querySelectorAll('[data-key]').forEach(b=>{if (!(b instanceof HTMLButtonElement)) return; b.onpointerdown=e=>{e.preventDefault();b.setPointerCapture(e.pointerId);down(b.dataset.key)};b.onlostpointercapture=()=>keys.delete(b.dataset.key)});
+scene.addEventListener('pointerdown',e=>{if(!(e.target instanceof Element && e.target.closest('button')))scene.focus({preventScroll:true})});
 function pick(kind,list){
   list.forEach(([x,y,z],index)=>{const m=objects[kind]();m.position.set(x,y,z);const s=kind==='star'?1.25:1.65;m.scale.set(s,s,s);view.root.addChild(m);ecs.spawn(Pickup({x,y,z,kind,index}),Visual(m))});
 }
