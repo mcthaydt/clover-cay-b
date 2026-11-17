@@ -86,10 +86,12 @@ jobs:
           COURSE: ${{ needs.scope.outputs.course }}
           METADATA: ${{ needs.scope.outputs.metadata }}
         run: |
-          tests=(tests/architecture.test.ts tests/scope.test.js)
+          tests=(tests/architecture.test.ts tests/scope.test.js tests/draft-runner.test.js)
           if [[ "$COURSE" == true ]]; then tests+=(tests/course.test.js); fi
           if [[ "$METADATA" == true ]]; then tests+=(tests/metadata.test.js); fi
-          node --test --test-concurrency=1 "${tests[@]}"
+          for file in "${tests[@]}"; do
+            node --import ./scripts/draft-bail.js "$file"
+          done
       - run: npm run build
       - uses: actions/upload-artifact@v4
         with:
@@ -101,9 +103,9 @@ jobs:
   browser:
     needs: [scope, quality]
     if: needs.scope.outputs.browser == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
-      fail-fast: false
+      fail-fast: ${{ github.event.pull_request.draft == true }}
       matrix:
         shard: [1, 2, 3, 4, 5, 6]
     steps:
@@ -124,7 +126,9 @@ jobs:
         with:
           name: game-build
           path: dist/
-      - run: npm run playtest -- --shard=${{ matrix.shard }}/6
+      - env:
+          FAILURES: ${{ github.event.pull_request.draft == true && '1' || '0' }}
+        run: npm run playtest -- --shard=${{ matrix.shard }}/6 --max-failures="$FAILURES"
       - uses: actions/upload-artifact@v4
         if: always()
         with:

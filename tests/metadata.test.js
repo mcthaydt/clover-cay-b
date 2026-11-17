@@ -14,3 +14,9 @@ test('both commit identities and attribution are checked', () => {
   for (const field of ['author', 'committer']) assert.equal(validCommit({ ...commit, [field]: { ...person, email: 'other@example.com' } }), false);
   for (const line of ['Co-authored-by: Claude <other@example.com>', 'Claude-Session: test', 'Generated with Claude Code']) assert.equal(validCommit({ ...commit, message: 'Fix\n\n' + line }), false);
 });
+
+test('robot-prefixed generated attribution is rejected', () => {
+  const line = '🤖 Generated with Claude Code';
+  assert.equal(validBody(line + '\n' + footer), false);
+  assert.equal(validCommit({ ...commit, message: 'Fix\n\n' + line }), false);
+});
