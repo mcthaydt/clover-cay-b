@@ -1,0 +1,158 @@
+name: Checks
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, synchronize, reopened, edited, ready_for_review]
+permissions:
+  contents: read
+concurrency:
+  group: checks-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+jobs:
+  scope:
+    runs-on: ubuntu-latest
+    outputs:
+      quality: ${{ steps.diff.outputs.quality }}
+      full: ${{ steps.diff.outputs.full }}
+      browser: ${{ steps.diff.outputs.browser }}
+      course: ${{ steps.diff.outputs.course }}
+      metadata: ${{ steps.diff.outputs.metadata }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - id: diff
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        shell: bash
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == pull_request ]]; then
+            git diff --no-renames --name-only -z "$BASE...$HEAD" > "$RUNNER_TEMP/paths"
+          else
+            touch "$RUNNER_TEMP/paths"
+          fi
+          node --input-type=module <<'JS' >> "$GITHUB_OUTPUT"
+          import { readFileSync } from 'node:fs';
+          import { scopeFor } from './scripts/ci-scope.js';
+          const event = JSON.parse(readFileSync(process.env.GITHUB_EVENT_PATH));
+          const paths = readFileSync(process.env.RUNNER_TEMP + '/paths', 'utf8').split('\0').filter(Boolean);
+          for (const [key, value] of Object.entries(scopeFor(paths, process.env.GITHUB_EVENT_NAME, event.pull_request?.draft))) console.log(key + '=' + value);
+          JS
+
+  commit-authors:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Validate PR metadata using the base revision when available
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          if git cat-file -e "$BASE:scripts/check-pr.js"; then
+            mkdir -p "$RUNNER_TEMP/metadata"
+            git show "$BASE:scripts/check-pr.js" > "$RUNNER_TEMP/metadata/check-pr.mjs"
+            git show "$BASE:scripts/pr-metadata.js" > "$RUNNER_TEMP/metadata/pr-metadata.js"
+            echo '{"type":"module"}' > "$RUNNER_TEMP/metadata/package.json"
+            node "$RUNNER_TEMP/metadata/check-pr.mjs"
+          else
+            node scripts/check-pr.js
+          fi
+
+  quality:
+    needs: scope
+    if: needs.scope.outputs.quality == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - if: needs.scope.outputs.full == 'true'
+        run: npm test
+      - if: needs.scope.outputs.full == 'false'
+        env:
+          COURSE: ${{ needs.scope.outputs.course }}
+          METADATA: ${{ needs.scope.outputs.metadata }}
+        run: |
+          tests=(tests/architecture.test.ts tests/scope.test.js)
+          if [[ "$COURSE" == true ]]; then tests+=(tests/course.test.js); fi
+          if [[ "$METADATA" == true ]]; then tests+=(tests/metadata.test.js); fi
+          node --test --test-concurrency=1 "${tests[@]}"
+      - run: npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: game-build
+          path: dist/
+          if-no-files-found: error
+          retention-days: 3
+
+  browser:
+    needs: [scope, quality]
+    if: needs.scope.outputs.browser == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+      - run: npx playwright install --with-deps chromium
+      - uses: actions/download-artifact@v4
+        with:
+          name: game-build
+          path: dist/
+      - run: npm run playtest -- --shard=${{ matrix.shard }}/6
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: browser-${{ matrix.shard }}
+          path: test-results/
+          if-no-files-found: error
+          retention-days: 3
+
+  gate:
+    if: always()
+    needs: [scope, commit-authors, quality, browser]
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          SCOPE: ${{ needs.scope.result }}
+          RUN_QUALITY: ${{ needs.scope.outputs.quality }}
+          RUN_BROWSER: ${{ needs.scope.outputs.browser }}
+          AUTHORS: ${{ needs.commit-authors.result }}
+          QUALITY: ${{ needs.quality.result }}
+          BROWSER: ${{ needs.browser.result }}
+        run: |
+          test "$SCOPE" = success
+          if [ "$GITHUB_EVENT_NAME" = pull_request ]; then test "$AUTHORS" = success; else test "$AUTHORS" = skipped; fi
+          verify() {
+            case "$1:$2" in
+              true:success|false:skipped) return 0 ;;
+              *) return 1 ;;
+            esac
+          }
+          verify "$RUN_QUALITY" "$QUALITY"
+          verify "$RUN_BROWSER" "$BROWSER"

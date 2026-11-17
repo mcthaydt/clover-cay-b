@@ -11,8 +11,9 @@ export const bridge = [-.6,1.45,.11,2.6,1.15];
 export const stones = [[4.65,-2.5,.88,1.35,1.2],[2.55,2.1,.68,1.0,1.1],[-5.7,-.92,.38,1.25,1],[-3.68,-4.45,1.02,.88,.85]];
 export const stars = [[-6.85,1.63,-3.8],[-1.6,2.1,-5.15],[5.2,1.8,4.3]];
 export const coins = [[-4.7,.6,2.05],[-3.7,.6,1.9],[-2.7,.6,1.75],[-1.65,.6,1.55],[-.65,.7,1.45],[.35,.9,1.25],[1.45,1.13,.65],[2.4,1.13,-.15],[3.35,1.13,-.95],[4.6,1.45,-2.5],[5.3,1.95,-3.2],[-5.7,.95,-.92],[-4.55,1.45,-3.7],[2.55,1.28,2.1],[4.1,1.53,3.85]];
+/** @type {[number, number, number]} */
 export const spawn = [-6.15,.65,2.85];
 export const goal = [7,1.35,-4.55];
 export function groundAt(x,z) {
-  return Math.max(-20,...[...islands,bridge,...stones].filter(([a,b,h,w,d])=>Math.abs(x-a)<=w/2 && Math.abs(z-b)<=d/2).map(p=>p[2]));
+  return Math.max(-20,...[...islands,bridge,...stones].filter(([a,b,,w,d])=>Math.abs(x-a)<=w/2 && Math.abs(z-b)<=d/2).map(p=>p[2]));
 }

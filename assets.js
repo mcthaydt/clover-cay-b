@@ -28,6 +28,7 @@ export function installAssets(P3) {
       // Rings run from bottom to top. A ring is [height, radius, offsetX, offsetZ].
       function rings(x,y,z,rx,ry,rz,profile,color,segments=12,tilt=0) {
         const start = positions.length / 3, cs = Math.cos(tilt), sn = Math.sin(tilt);
+        /** @returns {[number, number, number]} */
         function rotate(px,py,pz) { return [cs*px-sn*py, sn*px+cs*py, pz]; }
         profile.forEach(([h,r,dx=0,dz=0],i) => {
           const lo=profile[Math.max(0,i-1)], hi=profile[Math.min(profile.length-1,i+1)];
