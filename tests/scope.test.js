@@ -15,3 +15,14 @@ test('draft code gets relevant tests and gameplay media', () => {
   assert.equal(draft.full, false);
   assert.equal(draft.metadata, false);
 });
+
+test('nested documentation does not schedule browser jobs', () => {
+  for (const dir of ['assets', 'src', 'public', 'tests/playtest']) {
+    for (const draft of [false, true]) {
+      const result = scopeFor([dir + '/guide.md'], 'pull_request', draft);
+      assert.equal(result.quality, false);
+      assert.equal(result.browser, false);
+      if (draft) assert.equal(scopeFor([dir + '/guide.md', 'tests/course.test.js'], 'pull_request', true).browser, false);
+    }
+  }
+});
