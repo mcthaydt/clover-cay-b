@@ -21,3 +21,10 @@ test('every collectible is above a platform', () => {
     assert.ok(ground > -20 && ground < y, 'unsupported collectible at ' + [x, y, z]);
   }
 });
+
+test('the fork leads north to the grove and east to the summit', () => {
+  assert.equal(groundAt(0, 1), 0);
+  assert.equal(groundAt(0, -3.4), .2);
+  assert.deepEqual(goal, [5.8, 0, 1]);
+  assert.ok(Math.abs(stars[0][0]) < .5 && stars[0][2] < -3);
+});
