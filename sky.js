@@ -1,22 +1,28 @@
-// The painted horizon sits behind the live 3D diorama.
-export function paintSky(canvas){
-  const w=1400,h=620;canvas.width=w;canvas.height=h;
-  const c=canvas.getContext('2d'),gradient=c.createLinearGradient(0,0,0,h);
-  gradient.addColorStop(0,'#64b9ef');gradient.addColorStop(.55,'#a5e2f3');gradient.addColorStop(1,'#def8ef');
-  c.fillStyle=gradient;c.fillRect(0,0,w,h);
-  function oval(x,y,rx,ry,color){c.fillStyle=color;c.beginPath();c.ellipse(x,y,rx,ry,0,0,Math.PI*2);c.fill()}
+// Distant ridges share the hue of the sky so the playable ledges retain the strongest contrast.
+export function paintSky(canvas) {
+  const w=1600,h=850;
+  canvas.width=w; canvas.height=h;
+  const ctx=canvas.getContext('2d');
+  const sky=ctx.createLinearGradient(0,0,0,h);
+  sky.addColorStop(0,'#568fdb'); sky.addColorStop(.46,'#8bd6ed'); sky.addColorStop(.73,'#bce8e4'); sky.addColorStop(1,'#87c8d5');
+  ctx.fillStyle=sky;ctx.fillRect(0,0,w,h);
+  function silhouette(points,color){
+    ctx.fillStyle=color;ctx.beginPath();ctx.moveTo(...points[0]);
+    for(const [x,y] of points.slice(1))ctx.lineTo(x,y);
+    ctx.closePath();ctx.fill();
+  }
   function cloud(x,y,s,alpha){
-    c.save();c.globalAlpha=alpha;c.translate(x,y);c.scale(s,s);
-    const p=new Path2D('M-94 12 Q-101 -4 -79 -8 Q-84 -27 -56 -28 Q-44 -52 -20 -37 Q-4 -70 23 -50 Q39 -54 52 -27 Q79 -34 85 -13 Q109 -13 111 6 Q101 19 68 18 L-65 19 Q-84 20 -94 12');
-    c.fillStyle='#ccf1f8';c.fill(p);c.translate(-3,-5);c.fillStyle='#f5ffff';c.fill(p);c.restore();
+    ctx.save();ctx.translate(x,y);ctx.scale(s,s);ctx.globalAlpha=alpha;
+    const puff=new Path2D('M-117 16 Q-126 4 -101 0 Q-100 -18 -80 -16 Q-76 -45 -50 -35 Q-36 -81 1 -65 Q22 -58 29 -36 Q58 -52 76 -23 Q100 -28 105 -10 Q140 -10 145 9 Q143 18 102 17 L-117 17Z');
+    ctx.fillStyle='#c4e9ee';ctx.fill(puff);ctx.translate(-4,-7);ctx.fillStyle='#f3faf0';ctx.fill(puff);ctx.restore();
   }
-  [[38,120,.78,.88],[248,68,.46,.82],[584,101,.55,.92],[869,56,.4,.80],[1205,103,.95,.95],[1392,165,.65,.9],[335,225,.55,.50],[980,190,.68,.66]].forEach(a=>cloud(...a));
-  function distant(x,y,s){
-    c.save();c.translate(x,y);c.scale(s,s);c.fillStyle='#8ccdd5';c.beginPath();c.moveTo(-87,0);c.lineTo(81,0);c.lineTo(55,26);c.lineTo(35,30);c.lineTo(18,51);c.lineTo(-3,38);c.lineTo(-25,46);c.lineTo(-47,22);c.lineTo(-67,20);c.closePath();c.fill();oval(-3,-1,87,14,'#a7dfd7');
-    for(const [x,h] of [[-40,25],[-23,40],[17,35],[37,22]]){c.fillStyle='#87d0cf';c.beginPath();c.moveTo(x-8,-5);c.lineTo(x,-h);c.lineTo(x+8,-5);c.fill()}c.restore();
+  for(const args of [[105,168,1.6,.85],[398,88,.49,.8],[758,142,.74,.67],[1094,56,.61,.79],[1465,176,1.7,.89]])cloud(...args);
+  function peak(x,y,s,color,shadow){
+    silhouette([[x-185*s,h],[x-174*s,y+123*s],[x-112*s,y+59*s],[x-88*s,y+66*s],[x-34*s,y+5*s],[x-12*s,y],[x+14*s,y+10*s],[x+38*s,y+50*s],[x+73*s,y+38*s],[x+147*s,y+119*s],[x+192*s,h]],color);
+    silhouette([[x-14*s,y+3*s],[x+14*s,y+10*s],[x+38*s,y+50*s],[x+73*s,y+38*s],[x+118*s,y+98*s],[x+78*s,y+76*s],[x+56*s,y+86*s],[x+19*s,y+55*s]],shadow);
   }
-  distant(115,260,.83);distant(913,187,.46);distant(1270,294,1.12);distant(442,203,.42);
-  function bank(y,amp,col,offset){c.fillStyle=col;c.beginPath();c.moveTo(-80,h);c.lineTo(-80,y);for(let x=-80;x<w+90;x+=63){const a=y+Math.sin(x*.014+offset)*amp;c.quadraticCurveTo(x+31,a-27,x+63,y+Math.sin((x+63)*.014+offset)*amp)}c.lineTo(w+90,h);c.fill()}
-  bank(460,35,'#b9e8ed',.4);bank(500,27,'#cceff0',2);bank(552,25,'#e1f7f4',3);
-  cloud(78,478,1.45,.68);cloud(1370,429,1.32,.7);cloud(1103,535,.95,.64);
+  for(const [x,y,s] of [[-20,318,1.8],[235,386,1.35],[520,411,1.3],[805,370,1.5],[1100,407,1.4],[1370,315,1.8],[1610,374,1.5]])peak(x,y,s,'#91c9d8','#82bccc');
+  for(const a of [[-25,463,1.45,.82],[280,491,.8,.62],[731,474,1.1,.67],[1100,431,.8,.74],[1510,488,1.3,.87]])cloud(...a);
+  for(const [x,y,s] of [[-50,560,1.8],[179,615,1.32],[505,688,1.2],[880,693,1.4],[1208,620,1.9],[1560,546,1.6]])peak(x,y,s,'#80b9c6','#74aebf');
+  for(const a of [[24,755,2.2,.79],[528,833,2.1,.75],[1020,798,1.9,.59],[1540,751,2.3,.8]])cloud(...a);
 }
