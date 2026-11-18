@@ -13,10 +13,10 @@ export function installAssets(P3) {
       const positions = [], colors = [], indices = [];
       function vertex(point, normal, hex) {
         const amount = Math.max(0, normal[0] * -0.48 + normal[1] * 0.77 + normal[2] * 0.42);
-        const light = 0.78 + amount * 0.24;
+        const light = 0.53 + amount * 0.55;
         positions.push(...point);
         colors.push(...[16, 8, 0].map((shift, i) =>
-          Math.min(1, ((hex >> shift) & 255) / 255 * light + (1 - amount) * [0, 0.006, 0.018][i])
+          Math.pow(Math.min(1, ((hex >> shift) & 255) / 255 * light + (1 - amount) * [0.005, 0.014, 0.046][i]), 2.2)
         ), 1);
         return positions.length / 3 - 1;
       }
@@ -64,7 +64,7 @@ export function installAssets(P3) {
           triangle(a,c,d,color); triangle(a,d,b,color);
         });
       }
-      draw({oval,rod,rings,badge});
+      draw({oval,rod,rings,badge,triangle});
       const geometry = new P3.Geometry3D({
         positions: new Float32Array(positions),
         colors: new Float32Array(colors),
@@ -77,21 +77,42 @@ export function installAssets(P3) {
 
   function tree(variant=0) {
     const style=Math.abs(Math.floor(Number(variant)||0))%3;
-    const foliage=[0x67cb5f,0x47c69b,0xa3d963][style];
-    return model('tree'+style,({oval,rod,rings})=>{
+    const foliage=[0x26a56d,0x187d75,0xff869e][style];
+    return model('tree'+style,({oval,rod,rings,triangle})=>{
       rod(0,.60,0,.17,1.18,.16,0xa77149);
       rod(-.17,.86,.02,.085,.55,.085,0xb67d53,.67);
       rod(.14,.96,-.02,.085,.47,.085,0xb67d53,-.76);
+      const wood=0xb47a52;
+      for(const side of [-1,1])oval(side*.12,.19,.08,.12,.28,.13,wood,-side*.51);
       if(style===1) {
         const tier=[[-.47,0],[-.44,.66],[-.36,.97],[-.16,1],[.48,.13],[.51,0]];
-        rings(0,1.53,0,.89,1.32,.82,tier,0x3db595,12);
-        rings(.03,2.15,0,.62,1.08,.60,tier,foliage,12);
+        for(let i=0;i<3;i++){
+          const size=1-i*.21;
+          rings(0,1.2+i*.47,0,.87*size,1.20*size,.82*size,tier,[0x1f8067,0x289977,0x3bb48a][i],12);
+          for(let j=0;j<10;j++){
+            const a=j*tau/10+i*.28;
+            oval(Math.cos(a)*.69*size,1.04+i*.47,Math.sin(a)*.65*size,.19*size,.235*size,.18*size,[0x218566,0x319877,0x46a782][i],0,8);
+          }
+        }
       } else {
-        oval(-.22,1.62,.03,.66,.70,.65,foliage,-.12);
-        oval(.36,1.72,-.10,.60,.64,.58,foliage,.22);
-        oval(.02,2.08,.02,.68,.70,.61,foliage,.09);
-        if(style===2) for(const [x,y,z] of [[-.53,1.73,.48],[.29,2.1,.55],[.54,1.59,.29]]) {
-          oval(x,y,z,.109,.115,.105,0xff8563);
+        // Overlapping leaf whorls create a scalloped canopy with visible sun and shade.
+        oval(0,1.88,0,.81,.85,.72,foliage);
+        const greens=[0x279763,0x4aa545,0x6fb345,0x99c952,0xb8d85f];
+        const pinks=[0xd46b8b,0xf487a1,0xfaa5af,0xffb8bd,0xffd6c8];
+        const palette=style===2?pinks:greens;
+        for(let tier=0;tier<5;tier++){
+          const angle=-.75+tier*.40,level=1.92+.83*Math.sin(angle),r=.75*Math.cos(angle);
+          const count=tier===4?7:12;
+          for(let j=0;j<count;j++){
+            const a=j*tau/count+tier*.35,dx=Math.cos(a),dz=Math.sin(a);
+            const color=palette[Math.min(4,Math.max(0,Math.floor((tier*.61+.75-dx*.75+dz*.45+(j%3)*.2))))];
+            const cx=dx*r,cz=dz*r*.94;
+            const tip=[cx+dx*.18,level-.26,cz+dz*.18],base=[cx-dx*.08,level+.21,cz-dz*.08];
+            const left=[cx+dz*.195,level+.014,cz-dx*.195],right=[cx-dz*.195,level+.014,cz+dx*.195];
+            const ridge=[cx+dx*.13,level+.025,cz+dz*.13];
+            triangle(base,ridge,left,color);triangle(left,ridge,tip,color);
+            triangle(base,right,ridge,color);triangle(ridge,right,tip,color);
+          }
         }
       }
     });
@@ -112,7 +133,7 @@ export function installAssets(P3) {
   }
   function hero() {
     const root=new P3.Container3D();
-    const orange=0xf18b3d, cream=0xffe3b2, dark=0x44394a, scarf=0x31bdad;
+    const orange=0xff7c28, cream=0xffefd2, dark=0x241d33, scarf=0x147eae;
     const body=model('fox',({oval,rod,badge})=>{
       oval(.11,.37,-.21,.15,.29,.14,orange,-.55);
       oval(.21,.55,-.24,.11,.15,.12,cream,-.60);
@@ -132,6 +153,7 @@ export function installAssets(P3) {
       rod(0,.524,0,.209,.078,.157,scarf);
       badge([[-.055,.11],[.02,-.03],[.055,.11]],-.096,.36,.154,.025,scarf);
     });
+    body.scale.set(1.12,1.08,1.12);
     root.addChild(body);
     const feet=[], arms=[];
     for(const d of [-1,1]) {
@@ -178,9 +200,9 @@ export function installAssets(P3) {
   function flag(){
     return model('flag',({rod,oval,badge})=>{
       rod(0,.09,0,.28,.18,.28,0xb28767);
-      rod(0,1.32,0,.050,2.48,.05,0xf5ddab);
+      rod(0,1.32,0,.050,2.48,.05,0xffe1a3);
       oval(0,2.63,0,.107,.109,.107,0xffce46);
-      badge([[0,-.16],[.39,-.14],[.68,.01],[.39,.11],[0,.22]],.04,2.28,0,.034,0xfb675e,[.25,.02],.025);
+      badge([[0,-.16],[.39,-.14],[.68,.01],[.39,.11],[0,.22]],.04,2.28,0,.034,0xf4504f,[.25,.02],.025);
       badge(starPoints.map(([x,y])=>[x*.083,y*.083]),.28,2.32,.045,.009,0xfff2c6);
     });
   }

@@ -8,7 +8,7 @@ import { clamp, lerp } from 'math';
 import { installAssets } from './assets.js';
 import { buildScenery } from './scenery.js';
 import { paintSky } from './sky.js';
-import { islands, stones, bridge, groundAt, stars, coins, spawn, goal } from './course.js';
+import { islands, stones, bridge, groundAt, stars, coins, spawn, goal, locationAt } from './course.js';
 import { icon } from './ui.js';
 
 const $=id=>document.getElementById(id);
@@ -16,9 +16,9 @@ paintSky($('sky'));
 const objects=installAssets(P3),scene=$('scene'),render=$('render'),keys=new Set();
 const ecs=createWorld(),Pickup=trait({x:0,y:0,z:0,kind:'coin',index:0}),Collected=trait(),Visual=trait(()=>null);
 const app=new Application();
-let mode='loading',sound=true,audio,started=false,elapsed=0,coinCount=0,starCount=0,toastTimer,guideReturn='play';
-let body,physics,hero,shadow,view,camRig,shotTarget,accumulator=0,coyote=0,jumpBuffer=0,lastGround=0,passed=false;
-let clock=0,checkpoint=spawn,moveAmount=0,heading=0;
+let mode='loading',sound=true,audio,started=false,elapsed=0,coinCount=0,starCount=0,toastUntil=0,guideReturn='play';
+let animateScenery,body,physics,hero,shadow,view,camRig,shotTarget,accumulator=0,coyote=0,jumpBuffer=0,lastGround=0,passed=false;
+let falls=0,clock=0,checkpoint=spawn,moveAmount=0,heading=0;
 const timeText=t=>[Math.floor(t/60),Math.floor(t%60)].map(n=>String(n).padStart(2,'0')).join(':');
 function note(freq,length=.12,delay=0,type='sine'){
   if(!audio||!sound)return;
@@ -26,7 +26,7 @@ function note(freq,length=.12,delay=0,type='sine'){
   osc.type=type;osc.frequency.value=freq;g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.08,t+.008);g.gain.exponentialRampToValueAtTime(.0001,t+length);osc.connect(g);g.connect(audio.destination);osc.start(t);osc.stop(t+length+.02);
 }
 function unlock(){if(!audio&&sound){try{audio=new AudioContext()}catch{/* Browsers without Web Audio can still play. */}}if(audio?.state==='suspended')audio.resume().catch(()=>{})}
-function toast(msg){$('toast').textContent=msg;$('toast').style.opacity='1';clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').style.opacity='0',1800)}
+function toast(msg){$('toast').textContent=msg;$('toast').style.opacity='1';toastUntil=clock+1.8}
 function updateHud(){
   $('coins').textContent=String(coinCount).padStart(2,'0');$('stars').innerHTML=starCount+'<small>/3</small>';
   const collected=new Set(ecs.query(Pickup,Collected).map(e=>e.get(Pickup)).filter(p=>p.kind==='star').map(p=>p.index));
@@ -34,15 +34,15 @@ function updateHud(){
 }
 function play(){mode='play';$('overlay').hidden=true;scene.focus({preventScroll:true})}
 function dialog(state,title,html,actions,symbol){
-  mode=state;keys.clear();jumpBuffer=0;$('dialog-title').textContent=title;$('dialogBody').innerHTML=html;$('dialogIcon').textContent=symbol;$('actions').replaceChildren();
+  mode=state;$('overlay').dataset.state=state;keys.clear();jumpBuffer=0;$('dialog-title').textContent=title;$('dialogBody').innerHTML=html;$('dialogIcon').textContent=symbol;$('actions').replaceChildren();
   for(const [name,fn] of actions){const b=document.createElement('button');b.textContent=name;b.onclick=fn;$('actions').append(b)}
   $('overlay').hidden=false;$('actions').querySelector('button').focus({preventScroll:true});
 }
 function pause(){if(mode==='play')dialog('pause','Taking a breather','<p>Your expedition is paused.</p>',[['Resume',play],['Restart course',restart]],'Ⅱ');else if(mode==='pause')play()}
-function guide(){if(mode!=='play'&&mode!=='pause')return;guideReturn=mode;dialog('guide','Field guide','<p>Three stars lie off the main trail.</p><div class="hint"><b>Grove star</b> · Look behind the orchard trees.</div><div class="hint"><b>Sky star</b> · Follow the stepping stone beyond the grove.</div><div class="hint"><b>Blossom star</b> · Jump south from the waterfall meadow.</div>',[['Back to course',()=>{play();if(guideReturn==='pause')pause()}]],'✦')}
+function guide(){if(mode!=='play'&&mode!=='pause')return;guideReturn=mode;dialog('guide','Field guide','<p>Three stars lie off the main trail.</p><div class="hint"><b>Grove star</b> · Jump north from the waterfall fork.</div><div class="hint"><b>Sky star</b> · Head right from the grove, then return to the flag.</div><div class="hint"><b>Blossom star</b> · Look north of Meadow Landing.</div>',[['Back to course',()=>{play();if(guideReturn==='pause')pause()}]],'✦')}
 function respawn(){body.setTranslation({x:checkpoint[0],y:checkpoint[1],z:checkpoint[2]},true);body.setLinvel({x:0,y:0,z:0},true);jumpBuffer=0;coyote=0}
-function restart(){for(const e of ecs.query(Collected)){e.remove(Collected);e.get(Visual).visible=true}checkpoint=spawn;coinCount=starCount=elapsed=0;started=passed=false;respawn();updateHud();$('time').textContent='00:00';play()}
-function win(){passed=true;note(523);note(659,.16,.12);note(784,.3,.24);dialog('won','Summit reached!','<p>'+starCount+' of 3 stars · '+coinCount+' coins · '+timeText(elapsed)+'</p>',[['Keep exploring',play],['Play again',restart]],'⚑')}
+function restart(){for(const e of ecs.query(Collected)){e.remove(Collected);e.get(Visual).visible=true}checkpoint=spawn;falls=0;clock=0;accumulator=0;toastUntil=0;$('toast').style.opacity='0';coinCount=starCount=elapsed=0;started=passed=false;respawn();updateHud();$('time').textContent='00:00';play()}
+function win(){passed=true;note(523);note(659,.16,.12);note(784,.3,.24);dialog('won','Summit reached!','<p>'+starCount+' of 3 stars · '+coinCount+' coins · '+timeText(elapsed)+'</p>',[['Play again',restart],['Keep exploring',play]],'★ ⚑ ★')}
 $('guide').onclick=guide;$('pause').onclick=pause;
 $('sound').onclick=()=>{sound=!sound;if(sound){unlock();note(660)}$('sound').innerHTML=icon(sound?'volume':'muted')+'<span>Sound '+(sound?'on':'off')+'</span>';$('sound').setAttribute('aria-pressed',String(sound))};
 $('full').onclick=async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else await scene.requestFullscreen()}catch{toast('Fullscreen is unavailable in this view')}};
@@ -63,7 +63,7 @@ function fixedStep(){
   const dt=1/60,held=(...k)=>k.some(v=>keys.has(v))?1:0;
   const right=held('KeyD','ArrowRight')-held('KeyA','ArrowLeft'),down=held('KeyS','ArrowDown')-held('KeyW','ArrowUp'),len=Math.hypot(right,down);
   // World-space basis matches the elevated three-quarter camera.
-  const dx=(right*.924+down*.383)/(len||1),dz=(-right*.383+down*.924)/(len||1);
+  const dx=right/(len||1),dz=down/(len||1);
   const p=body.translation(),v=body.linvel(),surface=groundAt(p.x,p.z),feet=p.y-.47;
   const grounded=v.y<=.15&&feet>=surface-.12&&feet<=surface+.09;
   coyote=grounded?.105:Math.max(0,coyote-dt);jumpBuffer=Math.max(0,jumpBuffer-dt);
@@ -72,14 +72,13 @@ function fixedStep(){
   body.setLinvel({x:lerp(v.x,dx*speed,grounded?.42:.21),y:vy,z:lerp(v.z,dz*speed,grounded?.42:.21)},true);
   physics.step();moveAmount=len?1:0;if(len)heading=Math.atan2(dx,dz);
   if(grounded)lastGround=surface;
-  if(p.y < -6){respawn();toast('Back on the trail')}
-  if(p.x>.4&&p.x<3&&Math.abs(p.z+.6)<1&&grounded&&checkpoint===spawn){checkpoint=[1.2,1.2,-.5];toast('Waterfall checkpoint')}
+  if(p.y < -6){falls++;respawn();toast(starCount ? 'Back on the trail · stars kept!' : 'Back on the trail');return}
+  if(Math.abs(p.x)<1.6&&Math.abs(p.z-1)<1.5&&grounded&&checkpoint===spawn){checkpoint=[0,.65,1];toast('Waterfall Fork · jump up for a star!')}
   if(!passed&&Math.hypot(p.x-goal[0],p.z-goal[2])<.8&&Math.abs(feet-goal[1])<1.0)win();
 }
-function frame(ticker){
-  const dt=Math.min(ticker.deltaMS/1000,.09);
+function frame(dt){
   if(mode==='play'){
-    clock+=dt;if(started)elapsed+=dt;accumulator+=dt;while(accumulator>=1/60&&mode==='play'){fixedStep();accumulator-=1/60}
+    clock+=dt;animateScenery?.(clock);if(toastUntil && clock>=toastUntil){$('toast').style.opacity='0';toastUntil=0}if(started)elapsed+=dt;accumulator+=dt;while(accumulator+1e-10>=1/60&&mode==='play'){fixedStep();accumulator-=1/60}
     const p=body.translation();hero.position.set(p.x,p.y-.47,p.z);hero.rotation.y=heading;hero.animate(clock,moveAmount,Math.abs(body.linvel().y)>.4);
     const floor=groundAt(p.x,p.z);shadow.visible=floor>-10;shadow.position.set(p.x,floor+.032,p.z);const ss=clamp(1-(p.y-.47-floor)*.18,.5,1);shadow.scale.set(ss,1,ss);
     for(const e of ecs.query(Pickup)){
@@ -89,12 +88,12 @@ function frame(ticker){
         e.add(Collected);m.visible=false;if(data.kind==='star'){starCount++;toast(['Grove star found!','Sky star found!','Blossom star found!'][data.index]);note(784);note(1046,.22,.11)}else{coinCount++;note(980,.09)}updateHud()
       }
     }
-    $('time').textContent=timeText(elapsed);$('location').textContent=p.z<-2.7?(p.x>3?'Summit Ridge':p.x<-3?'Clover Grove':'Sky Steps'):p.z>2.5&&p.x>2?'Blossom Isle':p.x>0?'Waterfall Meadow':'Meadow Landing';
+    $('time').textContent=timeText(elapsed);$('location').textContent=locationAt(p.x,p.z);
     const compact=render.clientWidth/render.clientHeight<1.55;
-    const follow=started?(compact?.76:.43):(compact?.73:0);
-    shotTarget.position[0]=lerp(0,p.x,follow);shotTarget.position[1]=lerp(.25,lastGround+.4,follow);shotTarget.position[2]=lerp(-.15,p.z,follow);
+    const follow=compact?.87:started?.18:0;
+    shotTarget.position[0]=lerp(0,p.x,follow);shotTarget.position[1]=lerp(.3,lastGround+.4,follow);shotTarget.position[2]=lerp(-1.15,p.z,follow);
     camRig.update(dt);view.camera.position.set(...camRig.shot.position);view.camera.quaternion.set(...camRig.shot.quaternion);
-    const desired=compact?5.3:started?Math.min(9.3,render.clientWidth/render.clientHeight*4.4):10.65;
+    const desired=compact?6.4:Math.max(9.4,18.8*render.clientHeight/render.clientWidth);
     view.camera.orthographicSize=lerp(view.camera.orthographicSize,desired,1-Math.exp(-3*dt));
   }
 }
@@ -106,14 +105,24 @@ const boot=Effect.gen(function*(){
   yield* Effect.promise(()=>R.init());
   yield* Effect.promise(()=>app.init({preference:'webgl',preferWebGLVersion:2,backgroundAlpha:0,antialias:true,resolution:Math.min(devicePixelRatio,1.5),autoDensity:true,resizeTo:render}));
   render.append(app.canvas);view=new P3.View3D({autoResize:true,toneMapping:'none'});app.stage.addChild(view);
-  view.camera.mode='orthographic';view.camera.orthographicSize=render.clientWidth/render.clientHeight<1.55?5.3:10.65;
+  view.camera.mode='orthographic';view.camera.orthographicSize=render.clientWidth/render.clientHeight<1.55?6.4:Math.max(9.4,18.8*render.clientHeight/render.clientWidth);
   shotTarget=targetPose.create();camRig=new Klipp();const camera=new VirtualCamera('Explore',{priority:10});camRig.add(camera);
-  camera.body=new FollowBody(shotTarget,{offset:[8,12,19.3],damping:.25});camera.aim=new HardLookAtAim(shotTarget);
+  camera.body=new FollowBody(shotTarget,{offset:[0,14,18],damping:.25});camera.aim=new HardLookAtAim(shotTarget);
   physics=new R.World({x:0,y:-20,z:0});physics.timestep=1/60;
   for(const [x,z,y,w,d] of [...islands,bridge,...stones])physics.createCollider(R.ColliderDesc.cuboid(w/2,.65,d/2).setTranslation(x,y-.65,z).setFriction(0));
   body=physics.createRigidBody(R.RigidBodyDesc.dynamic().setTranslation(...spawn).lockRotations().setCcdEnabled(true));
   physics.createCollider(R.ColliderDesc.capsule(.21,.26).setFriction(0).setRestitution(0),body);
-  buildScenery(view.root,objects);hero=objects.hero();hero.scale.set(1.32,1.32,1.32);view.root.addChild(hero);shadow=makeShadow();view.root.addChild(shadow);pick('coin',coins);pick('star',stars);
-  $('loading').hidden=true;mode='play';app.ticker.add(frame);
+  animateScenery=buildScenery(view.root,objects);hero=objects.hero();hero.scale.set(1.32,1.32,1.32);view.root.addChild(hero);shadow=makeShadow();view.root.addChild(shadow);pick('coin',coins);pick('star',stars);
+  mode='play';frame(1/60);
+  Object.defineProperty(window,'cloverExpedition',{value:()=>Object.freeze({
+    mode, stars:starCount, coins:coinCount, falls, elapsed,
+    x:body.translation().x, y:body.translation().y, z:body.translation().z,
+    location:locationAt(body.translation().x,body.translation().z),
+    checkpoint:checkpoint===spawn?'Meadow Landing':'Waterfall Fork'
+  })});
+  const injectedClock=Reflect.get(window,'cloverClock');
+  if(typeof injectedClock==='function') injectedClock(frame);
+  else app.ticker.add(ticker=>frame(Math.min(ticker.deltaMS/1000,.09)));
+  $('loading').hidden=true;
 });
 Effect.runPromise(boot).catch(error=>{$('loading').textContent='Clover Cay could not start. '+String(error.message||error).slice(0,150);console.error(error)});

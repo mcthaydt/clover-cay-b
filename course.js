@@ -1,19 +1,30 @@
-// Positions are [x, z, top, width, depth, thickness]. The main trail runs east.
+// Platforms use [x, z, top, width, depth, thickness]. The summit is east.
 export const islands = [
-  [-4.7,2.3,0,7,4.8,2.75],
-  [2,-.65,.55,5.2,4.1,3.05],
-  [6.1,-4,1.35,4.7,3.8,3.6],
-  [-5.8,-3.4,.85,3.9,3.2,3.0],
-  [-1.65,-5.15,1.25,2.6,2.45,2.55],
-  [4.7,4.05,.95,3.15,2.65,2.6]
+  [-5, 1, 0, 4.4, 3.8, 2.3],
+  [0, 1, 0, 4.5, 3.8, 2.7],
+  [5, 1, 0, 4.6, 3.8, 3],
+  [0, -3.4, .2, 3.6, 2.8, 2.2],
+  [4.5, -3.4, .45, 3.4, 2.5, 2.6],
+  [-4.5, -3.2, .3, 3.2, 2.7, 2.3],
 ];
-export const bridge = [-.6,1.45,.11,2.6,1.15];
-export const stones = [[4.65,-2.5,.88,1.35,1.2],[2.55,2.1,.68,1.0,1.1],[-5.7,-.92,.38,1.25,1],[-3.68,-4.45,1.02,.88,.85]];
-export const stars = [[-6.85,1.63,-3.8],[-1.6,2.1,-5.15],[5.2,1.8,4.3]];
-export const coins = [[-4.7,.6,2.05],[-3.7,.6,1.9],[-2.7,.6,1.75],[-1.65,.6,1.55],[-.65,.7,1.45],[.35,.9,1.25],[1.45,1.13,.65],[2.4,1.13,-.15],[3.35,1.13,-.95],[4.6,1.45,-2.5],[5.3,1.95,-3.2],[-5.7,.95,-.92],[-4.55,1.45,-3.7],[2.55,1.28,2.1],[4.1,1.53,3.85]];
+export const bridge = [-2.55, 1, 0, 1.5, 1.3];
+export const stones = [[2.5, 1, 0, .95, 1.4], [0,-1.45,.08,.95,.55],
+  [2.3,-3.4,.33,.65,.85], [4.6,-1.55,.2,1,.65], [-4.55,-1.4,.12,.8,.55]];
+export const stars = [[-.1,.92,-3.4],[4.5,1.15,-3.4],[-4.5,1,-3.2]];
+export const coins = [[-5,.6,1],[-4,.6,1],[-3,.6,1],[-2,.6,1],[-1,.6,1],
+  [0,.6,.25],[0,.75,-1.45],[2.3,.93,-3.4],[4.6,.8,-1.55],[3.6,.6,1],[4.6,.6,1]];
 /** @type {[number, number, number]} */
-export const spawn = [-6.15,.65,2.85];
-export const goal = [7,1.35,-4.55];
+export const spawn = [-5.65,.65,1];
+export const goal = [5.8,0,1];
+const ground = [...islands,bridge,...stones];
 export function groundAt(x,z) {
-  return Math.max(-20,...[...islands,bridge,...stones].filter(([a,b,,w,d])=>Math.abs(x-a)<=w/2 && Math.abs(z-b)<=d/2).map(p=>p[2]));
+  let top = -20;
+  for (const [a,b,y,w,d] of ground) {
+    if (Math.abs(x-a)<=w/2 && Math.abs(z-b)<=d/2) top = Math.max(top,y);
+  }
+  return top;
+}
+export function locationAt(x,z) {
+  if(z < -1.8) return x < -2.5 ? 'Blossom Isle' : x > 2.6 ? 'Sky Lookout' : 'Clover Grove';
+  return x < -2.3 ? 'Meadow Landing' : x < 2.7 ? 'Waterfall Fork' : 'Summit Ridge';
 }
