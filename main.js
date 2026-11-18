@@ -17,7 +17,7 @@ const objects=installAssets(P3),scene=$('scene'),render=$('render'),keys=new Set
 const ecs=createWorld(),Pickup=trait({x:0,y:0,z:0,kind:'coin',index:0}),Collected=trait(),Visual=trait(()=>null);
 const app=new Application();
 let mode='loading',sound=true,audio,started=false,elapsed=0,coinCount=0,starCount=0,toastUntil=0,guideReturn='play';
-let body,physics,hero,shadow,view,camRig,shotTarget,accumulator=0,coyote=0,jumpBuffer=0,lastGround=0,passed=false;
+let animateScenery,body,physics,hero,shadow,view,camRig,shotTarget,accumulator=0,coyote=0,jumpBuffer=0,lastGround=0,passed=false;
 let falls=0,clock=0,checkpoint=spawn,moveAmount=0,heading=0;
 const timeText=t=>[Math.floor(t/60),Math.floor(t%60)].map(n=>String(n).padStart(2,'0')).join(':');
 function note(freq,length=.12,delay=0,type='sine'){
@@ -78,7 +78,7 @@ function fixedStep(){
 }
 function frame(dt){
   if(mode==='play'){
-    clock+=dt;if(toastUntil && clock>=toastUntil){$('toast').style.opacity='0';toastUntil=0}if(started)elapsed+=dt;accumulator+=dt;while(accumulator+1e-10>=1/60&&mode==='play'){fixedStep();accumulator-=1/60}
+    clock+=dt;animateScenery?.(clock);if(toastUntil && clock>=toastUntil){$('toast').style.opacity='0';toastUntil=0}if(started)elapsed+=dt;accumulator+=dt;while(accumulator+1e-10>=1/60&&mode==='play'){fixedStep();accumulator-=1/60}
     const p=body.translation();hero.position.set(p.x,p.y-.47,p.z);hero.rotation.y=heading;hero.animate(clock,moveAmount,Math.abs(body.linvel().y)>.4);
     const floor=groundAt(p.x,p.z);shadow.visible=floor>-10;shadow.position.set(p.x,floor+.032,p.z);const ss=clamp(1-(p.y-.47-floor)*.18,.5,1);shadow.scale.set(ss,1,ss);
     for(const e of ecs.query(Pickup)){
@@ -112,7 +112,7 @@ const boot=Effect.gen(function*(){
   for(const [x,z,y,w,d] of [...islands,bridge,...stones])physics.createCollider(R.ColliderDesc.cuboid(w/2,.65,d/2).setTranslation(x,y-.65,z).setFriction(0));
   body=physics.createRigidBody(R.RigidBodyDesc.dynamic().setTranslation(...spawn).lockRotations().setCcdEnabled(true));
   physics.createCollider(R.ColliderDesc.capsule(.21,.26).setFriction(0).setRestitution(0),body);
-  buildScenery(view.root,objects);hero=objects.hero();hero.scale.set(1.32,1.32,1.32);view.root.addChild(hero);shadow=makeShadow();view.root.addChild(shadow);pick('coin',coins);pick('star',stars);
+  animateScenery=buildScenery(view.root,objects);hero=objects.hero();hero.scale.set(1.32,1.32,1.32);view.root.addChild(hero);shadow=makeShadow();view.root.addChild(shadow);pick('coin',coins);pick('star',stars);
   mode='play';frame(1/60);
   Object.defineProperty(window,'cloverExpedition',{value:()=>Object.freeze({
     mode, stars:starCount, coins:coinCount, falls, elapsed,
